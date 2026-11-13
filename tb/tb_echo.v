@@ -12,15 +12,13 @@ module tb_echo;
     reg          rx = 1'b1;
     wire         tx, halted;
     wire [255:0] frame;
-    wire [15:0]  view_data, hits, misses;
     wire [9:0]   pc;
     wire [2:0]   flags;
-    wire [31:0]  retired, cycles;
+    wire [31:0]  retired, cycles, hits, misses, frames;
 
     soc_top #(.CLKS_PER_BIT(CPB)) dut (
         .clk(clk), .reset(reset), .uart_rx(rx), .uart_tx(tx),
-        .buttons(3'b000), .frame(frame), .halted(halted),
-        .ram_view_addr(8'd0), .ram_view_data(view_data),
+        .buttons(3'b000), .frame(frame), .frame_count(frames), .halted(halted),
         .dbg_pc(pc), .dbg_flags(flags), .dbg_retired(retired),
         .dbg_cycles(cycles), .cache_hits(hits), .cache_misses(misses)
     );

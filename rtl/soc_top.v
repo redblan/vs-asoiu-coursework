@@ -3,14 +3,14 @@
 //   cpu_core ──IF──> imem (ROM 1K x 16)
 //      │
 //      └──MEM──> bus ─┬─> dcache ─> dram (RAM 256 x 16)   0x0000..0x00FF
-//                     ├─> vram (32 x 8)                    0x8000..0x801F
+//                     ├─> vram (32 x 8 + LATCH)            0x8000..0x8020
 //                     └─> MMIO: dev_uart                   0xFF00..0xFF02
 //                               dev_input                  0xFF03..0xFF04
 //
 // Внешние выводы — то, что видит интерактивный мост (bridge/) или тестбенч.
 module soc_top #(
     parameter CLKS_PER_BIT = 16,     // длительность бита UART в тактах
-    parameter TICK_DIV     = 256,    // тактов на один тик таймера
+    parameter TICK_DIV     = 512,    // тактов на один тик таймера
     parameter MISS_PENALTY = 4       // такты простоя при промахе кэша
 )(
     input          clk,
@@ -18,17 +18,16 @@ module soc_top #(
     input          uart_rx,
     output         uart_tx,
     input  [2:0]   buttons,          // {пауза, медленнее, быстрее}
-    output [255:0] frame,            // 32 столбца по 8 бит
+    output [255:0] frame,            // 32 столбца по 8 бит — кадр на матрицах
+    output [31:0]  frame_count,      // сколько кадров программа вывела (LATCH)
     output         halted,
-    // отладка
-    input  [7:0]   ram_view_addr,
-    output [15:0]  ram_view_data,
+    // счётчики для отладки и отчёта
     output [9:0]   dbg_pc,
     output [2:0]   dbg_flags,
     output [31:0]  dbg_retired,
     output [31:0]  dbg_cycles,
-    output [15:0]  cache_hits,
-    output [15:0]  cache_misses
+    output [31:0]  cache_hits,
+    output [31:0]  cache_misses
 );
     // ---------------- ядро ----------------
     wire [9:0]  imem_addr;
@@ -72,15 +71,14 @@ module soc_top #(
     );
 
     dram u_ram (
-        .clk(clk), .addr(m_addr), .we(m_we), .wd(m_wd), .rd(m_rd),
-        .view_addr(ram_view_addr), .view_data(ram_view_data)
+        .clk(clk), .addr(m_addr), .we(m_we), .wd(m_wd), .rd(m_rd)
     );
 
     // ---------------- видео-буфер ----------------
     vram u_vram (
         .clk(clk), .reset(reset),
-        .addr(d_addr[4:0]), .we(d_we && sel_vram), .wd(d_wd[7:0]),
-        .rd(vram_rd), .frame(frame)
+        .addr(d_addr[5:0]), .we(d_we && sel_vram), .wd(d_wd[7:0]),
+        .rd(vram_rd), .frame(frame), .frame_count(frame_count)
     );
 
     // ---------------- MMIO ----------------

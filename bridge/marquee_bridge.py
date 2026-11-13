@@ -2,8 +2,8 @@
 
 cocotb запускает SoC в Icarus Verilog, а этот модуль открывает окно pygame:
   * клавиатура ПК -> UART (побитово, по линии uart_rx) и кнопки SoC;
-  * видео-буфер (выход frame, 32 x 8 бит) -> 4 LED-матрицы 8x8 в окне;
-  * всё, что процессор шлёт по uart_tx, печатается строкой внизу окна.
+  * кадр с матриц (выход frame, 32 x 8 бит) -> 4 LED-матрицы 8x8 в окне;
+  * всё, что процессор шлёт по uart_tx, печатается строкой в окне.
 
 Управление:
     буквы, цифры, знаки  — дописать в бегущую строку
@@ -11,6 +11,10 @@ cocotb запускает SoC в Icarus Verilog, а этот модуль отк
     стрелка вверх / вниз — кнопки «быстрее» / «медленнее»
     Tab                  — кнопка «пауза»
     Esc или закрыть окно — выход
+
+Время. Окно обновляется FPS раз в секунду, и между обновлениями SoC
+получает ровно CYCLES_PER_FRAME тактов. Если компьютер считает быстрее,
+мост ждёт, поэтому строка бежит с одной скоростью на любой машине.
 
 Запуск: python3 bridge/run.py play   (подробнее — README.md)
 
@@ -23,14 +27,16 @@ import os
 import time
 
 import cocotb
-from cocotb.triggers import ClockCycles
+import pygame as pg
 
 from soc_io import SoC, BTN_FASTER, BTN_SLOWER, BTN_PAUSE
 
-CHUNK = 2000            # тактов симуляции между обновлениями окна
-LED = 18                # диаметр светодиода, px
-STEP = 22               # шаг сетки
-GAP = 14                # промежуток между матрицами
+FPS = 60                 # обновлений окна в секунду
+CYCLES_PER_FRAME = 500   # тактов SoC на одно обновление: 30 000 тактов/с
+
+LED = 18                 # диаметр светодиода, px
+STEP = 22                # шаг сетки
+GAP = 14                 # промежуток между матрицами
 MARGIN = 24
 
 BG = (18, 18, 22)
@@ -40,76 +46,73 @@ LED_ON = (255, 70, 50)
 TEXT = (220, 220, 220)
 DIM = (140, 140, 150)
 
-
-def matrix_x(col):
-    m = col // 8
-    return MARGIN + m * (8 * STEP + GAP) + (col % 8) * STEP
+SPEED, PAUSED = 3, 6     # адреса переменных в asm/marquee.asm
 
 
 def key_to_ascii(ev):
     """Печатный символ ASCII для нажатой клавиши или None.
 
     Шрифт SoC латинский. При русской раскладке ev.unicode — кириллица,
-    тогда берём латинскую букву той же клавиши (Й -> Q): код клавиши
-    у SDL на macOS и Windows остаётся латинским.
+    тогда берётся латинская буква той же физической клавиши (Й -> q):
+    scancode от раскладки не зависит, у клавиш A..Z он равен 4..29.
     """
     ch = ev.unicode
     if ch and 32 <= ord(ch) < 127:
         return ch
-    if 32 <= ev.key < 127:
-        return chr(ev.key).upper()
+    if 4 <= ev.scancode <= 29:
+        ch = chr(ord("a") + ev.scancode - 4)
+        return ch.upper() if ev.mod & (pg.KMOD_SHIFT | pg.KMOD_CAPS) else ch
     return None
 
 
-def draw(pg, screen, font, frame, lines, uart_text):
+def draw(screen, font, frame, lines):
     screen.fill(BG)
     for m in range(4):
         x0 = MARGIN + m * (8 * STEP + GAP) - 6
         pg.draw.rect(screen, PANEL, (x0, MARGIN - 6, 8 * STEP + 8, 8 * STEP + 8),
                      border_radius=6)
     for col in range(32):
+        cx = MARGIN + (col // 8) * (8 * STEP + GAP) + (col % 8) * STEP + LED // 2
         for row in range(8):
             on = (frame[col] >> row) & 1
-            cx = matrix_x(col) + LED // 2
             cy = MARGIN + row * STEP + LED // 2
             pg.draw.circle(screen, LED_ON if on else LED_OFF, (cx, cy), LED // 2)
     y = MARGIN + 8 * STEP + 18
     for i, text in enumerate(lines):
         screen.blit(font.render(text, True, TEXT if i == 0 else DIM), (MARGIN, y))
         y += 22
-    if uart_text:
-        screen.blit(font.render("UART TX: " + uart_text[-70:], True, DIM), (MARGIN, y))
 
 
 @cocotb.test()
 async def play(dut):
-    import pygame as pg
-
     soc = SoC(dut)
     await soc.start()
 
     script = os.environ.get("BRIDGE_SCRIPT", "")
     max_cycles = int(os.environ.get("BRIDGE_CYCLES", "0"))
     shot = os.environ.get("BRIDGE_SHOT", "")
-    prog = os.environ.get("BRIDGE_PROG", "marquee")
-    if script:
-        soc.type(script)
+    marquee = os.environ.get("BRIDGE_PROG", "marquee") == "marquee"
+    typed = script
+    soc.type(script)
 
-    pg.init()
+    pg.display.init()
+    pg.font.init()
     width = MARGIN * 2 + 4 * 8 * STEP + 3 * GAP - 4
-    screen = pg.display.set_mode((width, 8 * STEP + 2 * MARGIN + 106))
+    screen = pg.display.set_mode((width, 8 * STEP + MARGIN + 32 + 22 * (3 if marquee else 4)))
     pg.display.set_caption("SoC Marquee — ИУ5-51Б, вариант 2")
     # системный шрифт с кириллицей (встроенный шрифт pygame её не содержит)
     font = pg.font.SysFont("dejavusans,arial,segoeui,helvetica,liberationsans", 16)
     pg.key.set_repeat(400, 40)
-    typed = ""
+    clock = pg.time.Clock()
 
-    t0 = time.time()
-    last_cycles, last_t, rate = 0, t0, 0.0
+    t0 = last_t = time.time()
+    last = soc.stats()
+    rate = soc_fps = 0.0
     running = True
     while running:
-        await ClockCycles(dut.clk, CHUNK)
+        await soc.cycles(CYCLES_PER_FRAME)
 
+        # ---------- клавиатура ПК -> UART и кнопки SoC ----------
         for ev in pg.event.get():
             if ev.type == pg.QUIT:
                 running = False
@@ -126,51 +129,44 @@ async def play(dut):
                     ch = key_to_ascii(ev)
                     if ch:
                         soc.type(ch)
-                        typed = (typed + ch)[-60:]
-
+                        typed += ch
         keys = pg.key.get_pressed()
-        mask = 0
-        if keys[pg.K_UP]:
-            mask |= BTN_FASTER
-        if keys[pg.K_DOWN]:
-            mask |= BTN_SLOWER
-        if keys[pg.K_TAB]:
-            mask |= BTN_PAUSE
-        soc.set_buttons(mask)
+        soc.set_buttons(BTN_FASTER * keys[pg.K_UP] | BTN_SLOWER * keys[pg.K_DOWN]
+                        | BTN_PAUSE * keys[pg.K_TAB])
 
+        # ---------- статистика раз в полсекунды ----------
         st = soc.stats()
         now = time.time()
         if now - last_t >= 0.5:
-            rate = (st["cycles"] - last_cycles) / (now - last_t)
-            last_cycles, last_t = st["cycles"], now
+            rate = (st["cycles"] - last["cycles"]) / (now - last_t)
+            soc_fps = (st["frames"] - last["frames"]) / (now - last_t)
+            last, last_t = st, now
 
-        if prog == "marquee":
-            speed = await soc.ram(3)
-            paused = await soc.ram(6)
-            head = (f"скорость: {speed} тик/сдвиг{'   ПАУЗА' if paused else ''}   "
+        # ---------- матрицы и строки состояния ----------
+        if marquee:
+            head = (f"скорость: {soc.ram(SPEED)} тик/сдвиг{'   ПАУЗА' if soc.ram(PAUSED) else ''}   "
                     f"(вверх/вниз — скорость, Tab — пауза, Enter — очистить, Esc — выход)")
+            lines = [head, "введено: " + (typed[-70:] or "— кликните по окну и печатайте —")]
         else:
-            head = "Chat Terminal: печатайте — ответ процессора в строке UART TX   (Esc — выход)"
-        lines = [
-            head,
-            f"такт {st['cycles']:,}  ·  CPI {st['cpi']:.2f}  ·  "
-            f"кэш {st['hits']:,} попаданий / {st['misses']:,} промахов  ·  "
-            f"{rate / 1000:.0f} тыс. тактов/с".replace(",", " "),
-        ]
-        if prog == "marquee":
-            lines.append("введено: " + (typed or "— кликните по окну и печатайте латиницей —")
-                         + (f"   (в очереди UART {len(soc.tx_queue)})" if soc.tx_queue else ""))
-        draw(pg, screen, font, soc.frame(), lines,
-             soc.received.decode("ascii", errors="replace"))
+            lines = ["Chat Terminal: процессор возвращает текст заглавными   (Esc — выход)",
+                     "введено:   " + typed[-70:],
+                     "ответ SoC: " + soc.received.decode("ascii", errors="replace")[-70:]]
+        stats = [f"{rate / 1000:.0f} тыс. тактов/с", f"CPI {st['cpi']:.2f}"]
+        if marquee:
+            stats.insert(1, f"{soc_fps:.0f} кадров SoC/с")
+        if st["hit_rate"] is not None:
+            stats.append(f"кэш: {st['hit_rate']:.0%} попаданий")
+        lines.append("  ·  ".join(stats))
+        draw(screen, font, soc.frame(), lines)
         pg.display.flip()
 
         if max_cycles and st["cycles"] >= max_cycles:
             running = False
+        clock.tick(FPS)               # реальное время: не быстрее FPS обновлений в секунду
 
     if shot:
         pg.image.save(screen, shot)
-        dut._log.info("скриншот сохранён: %s", shot)
     st = soc.stats()
-    dut._log.info("итог: %d тактов за %.1f с, CPI %.2f, кэш %d/%d",
-                  st["cycles"], time.time() - t0, st["cpi"], st["hits"], st["misses"])
+    dut._log.info("итог: %d тактов за %.1f с, %d кадров SoC, CPI %.2f",
+                  st["cycles"], time.time() - t0, st["frames"], st["cpi"])
     pg.quit()

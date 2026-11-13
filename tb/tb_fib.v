@@ -12,19 +12,19 @@ module tb_fib;
 
     wire         halted;
     wire [255:0] frame;
-    wire [15:0]  view_data, hits, misses;
     wire [9:0]   pc;
     wire [2:0]   flags;
-    wire [31:0]  retired, cycles;
+    wire [31:0]  retired, cycles, hits, misses, frames;
     wire         tx;
 
     soc_top dut (
         .clk(clk), .reset(reset), .uart_rx(1'b1), .uart_tx(tx),
-        .buttons(3'b000), .frame(frame), .halted(halted),
-        .ram_view_addr(8'd1), .ram_view_data(view_data),
+        .buttons(3'b000), .frame(frame), .frame_count(frames), .halted(halted),
         .dbg_pc(pc), .dbg_flags(flags), .dbg_retired(retired),
         .dbg_cycles(cycles), .cache_hits(hits), .cache_misses(misses)
     );
+
+    wire [15:0] answer = dut.u_ram.mem[1];     // RAM[0x01] — ответ программы
 
     function [15:0] fib(input integer n);
         integer i;
@@ -67,12 +67,12 @@ module tb_fib;
             if (!halted) begin
                 $display("FAIL N=%0d: нет HALT за 5000 тактов", n);
                 errors = errors + 1;
-            end else if (view_data !== fib(n)) begin
-                $display("FAIL N=%0d: RAM[1] = %0d, ожидалось %0d", n, view_data, fib(n));
+            end else if (answer !== fib(n)) begin
+                $display("FAIL N=%0d: RAM[1] = %0d, ожидалось %0d", n, answer, fib(n));
                 errors = errors + 1;
             end else begin
                 $display("PASS N=%2d: F(N) = %5d  тактов %4d, команд %3d, CPI %0d.%02d, кэш: попаданий %0d, промахов %0d",
-                         n, view_data, cycles, retired,
+                         n, answer, cycles, retired,
                          cycles / retired, (cycles * 100 / retired) % 100, hits, misses);
             end
         end

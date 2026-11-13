@@ -8,7 +8,7 @@
 // сколько команд выполнила программа за кадр.
 module dev_input #(
     parameter [7:0] BASE = 8'h03,
-    parameter TICK_DIV = 256
+    parameter TICK_DIV = 512
 )(
     input         clk,
     input         reset,

@@ -1,15 +1,12 @@
 // dram.v — основная память данных (Data RAM), 256 x 16 бит.
-// Запись синхронная, чтение комбинационное. Второй порт только на
-// чтение — для окна отладки (мост смотрит RAM, не мешая процессору).
+// Запись синхронная, чтение комбинационное.
 // Начальное содержимое: плюс-аргумент +ram=<файл>.
 module dram (
     input         clk,
     input  [7:0]  addr,
     input         we,
     input  [15:0] wd,
-    output [15:0] rd,
-    input  [7:0]  view_addr,
-    output [15:0] view_data
+    output [15:0] rd
 );
     reg [15:0] mem [0:255];
 `ifndef SYNTHESIS
@@ -29,6 +26,5 @@ module dram (
     always @(posedge clk)
         if (we) mem[addr] <= wd;
 
-    assign rd        = mem[addr];
-    assign view_data = mem[view_addr];
+    assign rd = mem[addr];
 endmodule

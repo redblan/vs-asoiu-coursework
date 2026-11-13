@@ -2,7 +2,7 @@
 """run.py — сборка прошивки и запуск SoC под cocotb + Icarus Verilog.
 
     python3 bridge/run.py play               окно pygame: играть руками
-    python3 bridge/run.py play --prog echo   то же для Chat Terminal (вывод UART внизу окна)
+    python3 bridge/run.py play --prog echo   то же для Chat Terminal (ответ процессора — строкой в окне)
     python3 bridge/run.py test               автотесты бегущей строки (без окна)
     python3 bridge/run.py demo               без человека: печатает текст, сохраняет build/bridge_<prog>.png
 
@@ -37,8 +37,9 @@ def main():
     sh(ROOT / "tools" / "gen_font.py", BUILD / "font.hex")
     sh(ROOT / "tools" / "asm.py", ROOT / "asm" / f"{args.prog}.asm", "-o", BUILD / args.prog)
 
-    # автотесты считают время в тиках по 64 такта; в окне — медленнее, для глаз
-    tick_div = args.tick_div or (64 if args.mode == "test" else 256)
+    # В окне SoC получает 30 000 тактов в секунду: тик 512 тактов и 4 тика на
+    # сдвиг дают около 15 столбцов в секунду. Автотестам ждать незачем — тик 64.
+    tick_div = args.tick_div or (64 if args.mode == "test" else 512)
     params = {"TICK_DIV": tick_div, "MISS_PENALTY": args.miss_penalty, "CLKS_PER_BIT": 16}
 
     runner = get_runner("icarus")
@@ -53,15 +54,15 @@ def main():
         timescale=("1ns", "1ps"),
     )
 
-    env = {"PYTHONPATH": str(ROOT / "bridge") + os.pathsep + os.environ.get("PYTHONPATH", ""),
-           "SOC_RAM_HEX": str(BUILD / (args.prog + ".ram.hex")),
+    # модули тестов cocotb ищет в sys.path, а папка этого скрипта там уже есть
+    env = {"SOC_RAM_HEX": str(BUILD / (args.prog + ".ram.hex")),
            "BRIDGE_PROG": args.prog}
     module = "test_marquee" if args.mode == "test" else "marquee_bridge"
     if args.mode == "demo":
         env.update({
             "SDL_VIDEODRIVER": os.environ.get("SDL_VIDEODRIVER", "dummy"),
-            "BRIDGE_SCRIPT": "TYPED LIVE OVER UART!",
-            "BRIDGE_CYCLES": "180000",
+            "BRIDGE_SCRIPT": "Hello",
+            "BRIDGE_CYCLES": "140000",
             "BRIDGE_SHOT": str(BUILD / f"bridge_{args.prog}.png"),
         })
 

@@ -34,6 +34,9 @@ $(B)/%.rom.hex: asm/%.asm tools/asm.py | $(B)
 test: test-rtl test-cocotb
 
 ARGS = +font=$(B)/font.hex
+# Icarus предупреждает, что hex-файл короче памяти. Это нормально:
+# остаток ROM заполнен HALT, остаток RAM — нулями.
+Q = 2>&1 | grep -v "Not enough words in the file"
 
 test-rtl: all crosscheck
 	$(IVERILOG) -o $(B)/tb_font.vvp tb/tb_font.v rtl/font_render.v
@@ -42,15 +45,15 @@ test-rtl: all crosscheck
 	vvp -n $(B)/tb_uart.vvp | tee $(B)/tb_uart.log
 	$(IVERILOG) -o $(B)/tb_fib.vvp -s tb_fib tb/tb_fib.v $(RTL)
 	@echo "== Фибоначчи: машинный код, составленный вручную"
-	vvp -n $(B)/tb_fib.vvp $(ARGS) +rom=asm/fib_manual.rom.hex +ram=asm/fib_manual.ram.hex | tee $(B)/tb_fib_manual.log
+	vvp -n $(B)/tb_fib.vvp $(ARGS) +rom=asm/fib_manual.rom.hex +ram=asm/fib_manual.ram.hex $(Q) | tee $(B)/tb_fib_manual.log
 	@echo "== Фибоначчи: код из ассемблера"
-	vvp -n $(B)/tb_fib.vvp $(ARGS) +rom=$(B)/fib.rom.hex +ram=$(B)/fib.ram.hex | tee $(B)/tb_fib.log
+	vvp -n $(B)/tb_fib.vvp $(ARGS) +rom=$(B)/fib.rom.hex +ram=$(B)/fib.ram.hex $(Q) | tee $(B)/tb_fib.log
 	$(IVERILOG) -o $(B)/tb_isa.vvp -s tb_isa tb/tb_isa.v $(RTL)
-	vvp -n $(B)/tb_isa.vvp $(ARGS) +rom=$(B)/isa_test.rom.hex +ram=$(B)/isa_test.ram.hex | tee $(B)/tb_isa.log
+	vvp -n $(B)/tb_isa.vvp $(ARGS) +rom=$(B)/isa_test.rom.hex +ram=$(B)/isa_test.ram.hex $(Q) | tee $(B)/tb_isa.log
 	$(IVERILOG) -o $(B)/tb_echo.vvp -s tb_echo tb/tb_echo.v $(RTL)
-	vvp -n $(B)/tb_echo.vvp $(ARGS) +rom=$(B)/echo.rom.hex +ram=$(B)/echo.ram.hex | tee $(B)/tb_echo.log
+	vvp -n $(B)/tb_echo.vvp $(ARGS) +rom=$(B)/echo.rom.hex +ram=$(B)/echo.ram.hex $(Q) | tee $(B)/tb_echo.log
 	$(IVERILOG) -o $(B)/tb_marquee.vvp -s tb_marquee tb/tb_marquee.v $(RTL)
-	vvp -n $(B)/tb_marquee.vvp $(ARGS) +rom=$(B)/marquee.rom.hex +ram=$(B)/marquee.ram.hex | tee $(B)/tb_marquee.log
+	vvp -n $(B)/tb_marquee.vvp $(ARGS) +rom=$(B)/marquee.rom.hex +ram=$(B)/marquee.ram.hex $(Q) | tee $(B)/tb_marquee.log
 	@! grep -h "FAIL" $(B)/tb_*.log && echo "== Verilog-тесты: все прошли"
 
 # машинный код, составленный вручную, совпадает с выводом ассемблера
@@ -74,7 +77,7 @@ demo:
 # ---------- диаграммы, lint, синтез ----------
 wave: all
 	$(IVERILOG) -o $(B)/tb_fib.vvp -s tb_fib tb/tb_fib.v $(RTL)
-	vvp -n $(B)/tb_fib.vvp $(ARGS) +rom=$(B)/fib.rom.hex +ram=$(B)/fib.ram.hex +vcd=$(B)/fib.vcd
+	vvp -n $(B)/tb_fib.vvp $(ARGS) +rom=$(B)/fib.rom.hex +ram=$(B)/fib.ram.hex +vcd=$(B)/fib.vcd $(Q)
 	@echo "открыть: gtkwave $(B)/fib.vcd docs/fib.gtkw"
 
 lint:

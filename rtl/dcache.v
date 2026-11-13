@@ -23,8 +23,8 @@ module dcache #(
     output [15:0] ram_wd,
     input  [15:0] ram_rd,
     // статистика
-    output reg [15:0] hits,
-    output reg [15:0] misses
+    output reg [31:0] hits,
+    output reg [31:0] misses
 );
     reg        valid [0:15];
     reg [3:0]  tag   [0:15];
@@ -50,8 +50,8 @@ module dcache #(
                 data[i]  <= 16'h0000;
             end
             wait_cnt <= 4'd0;
-            hits     <= 16'd0;
-            misses   <= 16'd0;
+            hits     <= 32'd0;
+            misses   <= 32'd0;
         end else begin
             if (re && !hit) begin
                 if (wait_cnt == MISS_PENALTY - 1) begin
@@ -59,12 +59,12 @@ module dcache #(
                     tag[idx]   <= tg;
                     data[idx]  <= ram_rd;
                     wait_cnt   <= 4'd0;
-                    misses     <= misses + 16'd1;
+                    misses     <= misses + 32'd1;
                 end else begin
                     wait_cnt <= wait_cnt + 4'd1;
                 end
             end
-            if (re && hit) hits <= hits + 16'd1;
+            if (re && hit) hits <= hits + 32'd1;
             if (we && hit) data[idx] <= wd;      // write-through
         end
     end

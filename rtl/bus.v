@@ -1,13 +1,13 @@
 // bus.v — шина данных и декодер адресов (стадия MEM).
 //
 //   0x0000..0x00FF  Data RAM через кэш   (кэшируется)
-//   0x8000..0x801F  видео-буфер          (не кэшируется)
+//   0x8000..0x803F  видео-буфер и LATCH  (не кэшируется)
 //   0xFF00..0xFFFF  MMIO-устройства      (не кэшируется)
 //   прочие адреса   чтение 0, запись игнорируется
 // Запись каждая область берёт сама: we && sel_*.
 module bus (
     /* verilator lint_off UNUSEDSIGNAL */
-    input  [15:0] addr,      // [4:0] декодеру не нужны
+    input  [15:0] addr,      // [5:0] декодеру не нужны
     /* verilator lint_on UNUSEDSIGNAL */
     input         re,
     // выбор областей
@@ -21,7 +21,7 @@ module bus (
     output [15:0] rd
 );
     assign sel_ram  = (addr[15:8] == 8'h00);
-    assign sel_vram = (addr[15:5] == 11'b1000_0000_000);
+    assign sel_vram = (addr[15:6] == 10'b1000_0000_00);
     assign sel_mmio = (addr[15:8] == 8'hFF);
 
     assign rd = !re      ? 16'h0000 :

@@ -13,15 +13,13 @@ module tb_marquee;
     reg  [2:0]   buttons = 3'b000;
     wire         tx, halted;
     wire [255:0] frame;
-    wire [15:0]  view_data, hits, misses;
     wire [9:0]   pc;
     wire [2:0]   flags;
-    wire [31:0]  retired, cycles;
+    wire [31:0]  retired, cycles, hits, misses, frames;
 
     soc_top #(.CLKS_PER_BIT(CPB), .TICK_DIV(64)) dut (
         .clk(clk), .reset(reset), .uart_rx(rx), .uart_tx(tx),
-        .buttons(buttons), .frame(frame), .halted(halted),
-        .ram_view_addr(8'd0), .ram_view_data(view_data),
+        .buttons(buttons), .frame(frame), .frame_count(frames), .halted(halted),
         .dbg_pc(pc), .dbg_flags(flags), .dbg_retired(retired),
         .dbg_cycles(cycles), .cache_hits(hits), .cache_misses(misses)
     );
@@ -89,6 +87,7 @@ module tb_marquee;
 
         $display("тактов %0d, команд %0d, CPI %0d.%02d, кэш: попаданий %0d, промахов %0d",
                  cycles, retired, cycles / retired, (cycles * 100 / retired) % 100, hits, misses);
+        $display("кадров выведено %0d, один кадр — %0d тактов", frames, cycles / frames);
         if (errors == 0) $display("ALL TESTS PASSED");
         else             $display("%0d TEST(S) FAILED", errors);
         $finish;
