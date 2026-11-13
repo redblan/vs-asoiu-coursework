@@ -1,0 +1,50 @@
+[*] Сохранённый вид GTKWave для временных диаграмм Фибоначчи.
+[*] make wave && gtkwave build/fib.vcd docs/fib.gtkw
+[dumpfile] "build/fib.vcd"
+[timestart] 0
+@28
+tb_fib.clk
+tb_fib.reset
+@200
+-IF / ID
+@22
+tb_fib.dut.u_core.pc[9:0]
+tb_fib.dut.u_core.ifid_instr[15:0]
+@28
+tb_fib.dut.u_core.ifid_v
+@200
+-Hazard Unit
+@28
+tb_fib.dut.u_core.load_use
+tb_fib.dut.u_core.ex_taken
+tb_fib.dut.u_core.freeze
+@22
+tb_fib.dut.u_core.fwd_a[1:0]
+tb_fib.dut.u_core.fwd_b[1:0]
+@200
+-EX
+@22
+tb_fib.dut.u_core.ex_a[15:0]
+tb_fib.dut.u_core.ex_b[15:0]
+tb_fib.dut.u_core.ex_res[15:0]
+@200
+-MEM / WB
+@22
+tb_fib.dut.u_core.dmem_addr[15:0]
+@28
+tb_fib.dut.u_core.dmem_re
+tb_fib.dut.u_core.dmem_we
+@22
+tb_fib.dut.u_core.wb_wa[2:0]
+tb_fib.dut.u_core.wb_wd[15:0]
+@28
+tb_fib.dut.u_core.wb_we
+tb_fib.halted
+@200
+-Регистры и результат
+@22
+tb_fib.dut.u_core.u_rf.dbg_r1[15:0]
+tb_fib.dut.u_core.u_rf.dbg_r2[15:0]
+tb_fib.dut.u_core.u_rf.dbg_r3[15:0]
+tb_fib.dut.u_core.u_rf.dbg_r4[15:0]
+tb_fib.view_data[15:0]
