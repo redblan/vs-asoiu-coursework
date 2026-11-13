@@ -46,6 +46,21 @@ def matrix_x(col):
     return MARGIN + m * (8 * STEP + GAP) + (col % 8) * STEP
 
 
+def key_to_ascii(ev):
+    """Печатный символ ASCII для нажатой клавиши или None.
+
+    Шрифт SoC латинский. При русской раскладке ev.unicode — кириллица,
+    тогда берём латинскую букву той же клавиши (Й -> Q): код клавиши
+    у SDL на macOS и Windows остаётся латинским.
+    """
+    ch = ev.unicode
+    if ch and 32 <= ord(ch) < 127:
+        return ch
+    if 32 <= ev.key < 127:
+        return chr(ev.key).upper()
+    return None
+
+
 def draw(pg, screen, font, frame, lines, uart_text):
     screen.fill(BG)
     for m in range(4):
@@ -82,11 +97,12 @@ async def play(dut):
 
     pg.init()
     width = MARGIN * 2 + 4 * 8 * STEP + 3 * GAP - 4
-    screen = pg.display.set_mode((width, 8 * STEP + 2 * MARGIN + 84))
+    screen = pg.display.set_mode((width, 8 * STEP + 2 * MARGIN + 106))
     pg.display.set_caption("SoC Marquee — ИУ5-51Б, вариант 2")
     # системный шрифт с кириллицей (встроенный шрифт pygame её не содержит)
     font = pg.font.SysFont("dejavusans,arial,segoeui,helvetica,liberationsans", 16)
     pg.key.set_repeat(400, 40)
+    typed = ""
 
     t0 = time.time()
     last_cycles, last_t, rate = 0, t0, 0.0
@@ -102,11 +118,15 @@ async def play(dut):
                     running = False
                 elif ev.key == pg.K_BACKSPACE:
                     soc.type(b"\x08")
+                    typed = typed[:-1]
                 elif ev.key in (pg.K_RETURN, pg.K_KP_ENTER):
                     soc.type(b"\r")
-            elif ev.type == pg.TEXTINPUT:
-                # шрифт SoC — только ASCII; кириллица отбрасывается
-                soc.type(ev.text)
+                    typed = ""
+                else:
+                    ch = key_to_ascii(ev)
+                    if ch:
+                        soc.type(ch)
+                        typed = (typed + ch)[-60:]
 
         keys = pg.key.get_pressed()
         mask = 0
@@ -128,7 +148,7 @@ async def play(dut):
             speed = await soc.ram(3)
             paused = await soc.ram(6)
             head = (f"скорость: {speed} тик/сдвиг{'   ПАУЗА' if paused else ''}   "
-                    f"(вверх/вниз — скорость, Tab — пауза, Esc — выход)")
+                    f"(вверх/вниз — скорость, Tab — пауза, Enter — очистить, Esc — выход)")
         else:
             head = "Chat Terminal: печатайте — ответ процессора в строке UART TX   (Esc — выход)"
         lines = [
@@ -137,6 +157,9 @@ async def play(dut):
             f"кэш {st['hits']:,} попаданий / {st['misses']:,} промахов  ·  "
             f"{rate / 1000:.0f} тыс. тактов/с".replace(",", " "),
         ]
+        if prog == "marquee":
+            lines.append("введено: " + (typed or "— кликните по окну и печатайте латиницей —")
+                         + (f"   (в очереди UART {len(soc.tx_queue)})" if soc.tx_queue else ""))
         draw(pg, screen, font, soc.frame(), lines,
              soc.received.decode("ascii", errors="replace"))
         pg.display.flip()
