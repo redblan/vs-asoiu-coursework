@@ -14,17 +14,19 @@
 
 ## Быстрый старт
 
-Нужны Icarus Verilog ≥ 11, Python ≥ 3.10, `cocotb` ≥ 2.0 и `pygame`. Для `make lint`, `make synth` и просмотра диаграмм — ещё Verilator, Yosys и GTKWave.
+Нужны Icarus Verilog ≥ 11, Python 3.10–3.14 (cocotb 2.x пока не поддерживает 3.15), `cocotb` ≥ 2.0 и `pygame`. Для `make lint`, `make synth` и просмотра диаграмм — ещё Verilator, Yosys и GTKWave.
 
 ```bash
 # Ubuntu / Debian / WSL
 sudo apt install iverilog verilator yosys gtkwave make
 pip install cocotb pygame
 
-# macOS
-brew install icarus-verilog verilator yosys make
+# macOS (Python из Homebrew ставит пакеты только в виртуальное окружение)
+brew install icarus-verilog verilator yosys make python@3.13
 brew install --cask gtkwave
-pip3 install cocotb pygame
+python3.13 -m venv .venv
+source .venv/bin/activate        # в каждом новом окне терминала
+pip install cocotb pygame
 ```
 
 ```bash
